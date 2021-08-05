@@ -3,6 +3,7 @@ package pixelpack
 import (
 	"image"
 
+	"github.com/dusk125/pixelutils"
 	"github.com/dusk125/rectpack"
 	"github.com/faiface/pixel"
 )
@@ -22,6 +23,17 @@ func NewPacker(width, height int, flags rectpack.CreateFlags) (p *Packer) {
 		internal: rectpack.NewPacker(width, height, flags),
 	}
 	return
+}
+
+func (pack *Packer) InsertFromPath(id int, path string) (err error) {
+	var (
+		data *pixel.PictureData
+	)
+	if data, err = pixelutils.LoadPictureData(path); err != nil {
+		return
+	}
+
+	return pack.internal.Insert(id, data.Image())
 }
 
 func (pack *Packer) Pack(flags rectpack.PackFlags) (err error) {
