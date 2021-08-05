@@ -1,2 +1,2 @@
 # rectpack
-General purpose rectangle packer
+General purpose rectangle packer for Golang
