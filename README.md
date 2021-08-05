@@ -1,2 +1,2 @@
-# rect-pack
+# rectpack
 General purpose rectangle packer
