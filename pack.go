@@ -3,6 +3,7 @@ package rectpack
 import (
 	"errors"
 	"image"
+	"image/color"
 	"image/jpeg"
 	"image/png"
 	"os"
@@ -163,16 +164,16 @@ func (pack *Packer) Pack(flags PackFlags) (err error) {
 	for id, pic := range pack.images {
 		for x := 0; x < pic.Bounds().Dx(); x++ {
 			for y := 0; y < pic.Bounds().Dy(); y++ {
-				rect := pack.rects[id]
-				dstI := pack.pic.PixOffset(x+rect.Min.X, y+rect.Min.Y)
-				var srcI int
+				var (
+					c    color.Color
+					rect = pack.rects[id]
+				)
 				if flags&InsertFlipped != 0 {
-					srcI = pic.PixOffset(x, y)
+					c = pic.At(x, (pic.Bounds().Dy()-1)-y)
 				} else {
-					srcI = pic.PixOffset(x, y)
+					c = pic.At(x, y)
 				}
-
-				pack.pic.Pix[dstI] = pic.Pix[srcI]
+				pack.pic.Set(x+rect.Min.X, y+rect.Min.Y, c)
 			}
 		}
 	}
