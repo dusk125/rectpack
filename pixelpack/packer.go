@@ -64,3 +64,7 @@ func (pack *Packer) DrawTo(t pixel.Target) {
 func (pack *Packer) Clear() {
 	pack.batch.Clear()
 }
+
+func (pack *Packer) Save(filename string) (err error) {
+	return pack.internal.Save(filename)
+}

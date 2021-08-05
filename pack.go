@@ -33,6 +33,7 @@ const (
 
 type IPack interface {
 	Pack(flags PackFlags) (err error)
+	Save(filename string) (err error)
 }
 
 type Packer struct {
