@@ -177,8 +177,8 @@ func (pack *Packer) Pack(flags PackFlags) (err error) {
 			}
 		}
 	}
-	pack.queued = pack.queued[:0]
-	pack.emptySpaces = pack.emptySpaces[:0]
+	pack.queued = nil
+	pack.emptySpaces = nil
 	pack.images = nil
 
 	return
