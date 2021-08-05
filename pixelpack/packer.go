@@ -1,14 +1,27 @@
 package pixelpack
 
 import (
+	"image"
+
 	"github.com/dusk125/rectpack"
 	"github.com/faiface/pixel"
 )
 
+func imgRectToPix(r image.Rectangle) pixel.Rect {
+	return pixel.R(float64(r.Min.X), float64(r.Min.Y), float64(r.Max.X), float64(r.Max.Y))
+}
+
 type PixelPacker struct {
-	internal rectpack.Packer
+	internal *rectpack.Packer
 	batch    *pixel.Batch
 	img      *pixel.PictureData
+}
+
+func NewPacker(width, height int, flags rectpack.CreateFlags) (p *PixelPacker) {
+	p = &PixelPacker{
+		internal: rectpack.NewPacker(width, height, flags),
+	}
+	return
 }
 
 func (pack *PixelPacker) Pack(flags rectpack.PackFlags) (err error) {
@@ -23,8 +36,7 @@ func (pack *PixelPacker) Pack(flags rectpack.PackFlags) (err error) {
 // Draws the given texture to the batch
 func (pack *PixelPacker) Draw(id int, m pixel.Matrix) {
 	var (
-		irect  = pack.internal.Get(id)
-		rect   = pixel.R(float64(irect.Min.X), float64(irect.Min.Y), float64(irect.Max.X), float64(irect.Max.Y))
+		rect   = imgRectToPix(pack.internal.Get(id))
 		sprite = pixel.NewSprite(pack.img, rect)
 	)
 
