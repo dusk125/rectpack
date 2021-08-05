@@ -31,6 +31,10 @@ const (
 	InsertFlipped PackFlags = 1 << iota // Should the sprite be inserted into the packer upside-down
 )
 
+type IPack interface {
+	Pack(flags PackFlags) (err error)
+}
+
 type Packer struct {
 	bounds      image.Rectangle
 	emptySpaces []image.Rectangle
