@@ -47,7 +47,7 @@ func split(img, space image.Rectangle) (s *createdSplits, err error) {
 	h := space.Dy() - img.Dy()
 
 	if w < 0 || h < 0 {
-		return nil, ErrorSplitFailed
+		return nil, ErrSplitFailed
 	} else if w == 0 && h == 0 {
 		// perfectly fit case
 		return &createdSplits{}, nil
