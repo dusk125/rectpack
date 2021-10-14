@@ -3,6 +3,7 @@ package rectpack
 import (
 	"errors"
 	"image"
+	"image/draw"
 	"image/jpeg"
 	"image/png"
 	"os"
@@ -14,12 +15,13 @@ import (
 // https://github.com/TeamHypersomnia/rectpack2D
 
 var (
-	ErrorNoEmptySpace     = errors.New("Couldn't find an empty space")
-	ErrorSplitFailed      = errors.New("Split failed")
+	ErrNoEmptySpace       = errors.New("Couldn't find an empty space")
+	ErrSplitFailed        = errors.New("Split failed")
 	ErrGrowthFailed       = errors.New("A previously added texture failed to be added after packer growth")
 	ErrUnsupportedSaveExt = errors.New("Unsupported save filename extension")
 	ErrNotPacked          = errors.New("Packer must be packed")
 	ErrNotFoundNoDefault  = errors.New("Id doesn't exist and a default sprite wasn't specified")
+	ErrAlreadyPacked      = errors.New("Pack has already been called for this packer")
 )
 
 type PackFlags uint8
@@ -59,6 +61,37 @@ func NewPacker(cfg PackerCfg) (pack *Packer) {
 // Inserts PictureData into the packer
 func (pack *Packer) Insert(id int, pic *image.RGBA) {
 	pack.queued = append(pack.queued, queuedData{id: id, pic: pic})
+}
+
+// Automatically parse and insert image from file.
+func (pack *Packer) InsertFromFile(id int, filename string) (err error) {
+	var (
+		file *os.File
+		img  image.Image
+		rgba *image.RGBA
+	)
+
+	if file, err = os.Open(filename); err != nil {
+		return err
+	}
+	defer file.Close()
+
+	if img, _, err = image.Decode(file); err != nil {
+		return err
+	}
+
+	switch i := img.(type) {
+	case *image.RGBA:
+		rgba = i
+	default:
+		r := i.Bounds()
+		rgba = image.NewRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+		draw.Draw(rgba, rgba.Bounds(), i, r.Min, draw.Src)
+	}
+
+	pack.Insert(id, rgba)
+
+	return
 }
 
 // Helper to find the smallest empty space that'll fit the given bounds
@@ -128,6 +161,10 @@ func (pack *Packer) insert(data queuedData) (err error) {
 
 // Pack takes the added textures and packs them into the packer texture, growing the texture if necessary.
 func (pack *Packer) Pack() (err error) {
+	if pack.packed {
+		return ErrAlreadyPacked
+	}
+
 	// sort queued images largest to smallest
 	sort.Slice(pack.queued, func(i, j int) bool {
 		return area(pack.queued[i].pic.Bounds()) > area(pack.queued[j].pic.Bounds())
