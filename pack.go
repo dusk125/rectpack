@@ -3,7 +3,6 @@ package rectpack
 import (
 	"errors"
 	"image"
-	"image/color"
 	"image/jpeg"
 	"image/png"
 	"os"
@@ -19,53 +18,47 @@ var (
 	ErrorSplitFailed      = errors.New("Split failed")
 	ErrGrowthFailed       = errors.New("A previously added texture failed to be added after packer growth")
 	ErrUnsupportedSaveExt = errors.New("Unsupported save filename extension")
+	ErrNotPacked          = errors.New("Packer must be packed")
+	ErrNotFoundNoDefault  = errors.New("Id doesn't exist and a default sprite wasn't specified")
 )
 
 type PackFlags uint8
 type CreateFlags uint8
 
-const (
-	AllowGrowth CreateFlags = 1 << iota // Should the packer space try to grow larger to fit oversized images
-)
-
-const (
-	InsertFlipped PackFlags = 1 << iota // Should the sprite be inserted into the packer upside-down
-)
-
-type IPack interface {
-	Pack(flags PackFlags) (err error)
-	Save(filename string) (err error)
+type PackerCfg struct {
+	Flags CreateFlags
 }
 
 type Packer struct {
+	cfg         PackerCfg
 	bounds      image.Rectangle
 	emptySpaces []image.Rectangle
 	queued      []queuedData
 	rects       map[int]image.Rectangle
 	images      map[int]*image.RGBA
-	flags       CreateFlags
 	pic         *image.RGBA
 	nfId        int
+	packed      bool
 }
 
 // Creates a new packer instance
-func NewPacker(width, height int, flags CreateFlags) (pack *Packer) {
-	bounds := rect(0, 0, width, height)
+func NewPacker(cfg PackerCfg) (pack *Packer) {
+	bounds := rect(0, 0, 0, 0)
 	pack = &Packer{
+		cfg:         cfg,
 		bounds:      bounds,
-		flags:       flags,
-		emptySpaces: []image.Rectangle{bounds},
+		emptySpaces: []image.Rectangle{},
 		rects:       make(map[int]image.Rectangle),
 		images:      make(map[int]*image.RGBA),
 		queued:      make([]queuedData, 0),
+		nfId:        -1,
 	}
 	return
 }
 
 // Inserts PictureData into the packer
-func (pack *Packer) Insert(id int, pic *image.RGBA) (err error) {
+func (pack *Packer) Insert(id int, pic *image.RGBA) {
 	pack.queued = append(pack.queued, queuedData{id: id, pic: pic})
-	return
 }
 
 // Helper to find the smallest empty space that'll fit the given bounds
@@ -134,7 +127,8 @@ func (pack *Packer) insert(data queuedData) (err error) {
 }
 
 // Pack takes the added textures and packs them into the packer texture, growing the texture if necessary.
-func (pack *Packer) Pack(flags PackFlags) (err error) {
+func (pack *Packer) Pack() (err error) {
+	// sort queued images largest to smallest
 	sort.Slice(pack.queued, func(i, j int) bool {
 		return area(pack.queued[i].pic.Bounds()) > area(pack.queued[j].pic.Bounds())
 	})
@@ -146,10 +140,6 @@ func (pack *Packer) Pack(flags PackFlags) (err error) {
 		)
 
 		if !found {
-			if pack.flags&AllowGrowth == 0 {
-				return ErrorNoEmptySpace
-			}
-
 			if err = pack.grow(bounds.Size(), i); err != nil {
 				return
 			}
@@ -165,27 +155,26 @@ func (pack *Packer) Pack(flags PackFlags) (err error) {
 		for x := 0; x < pic.Bounds().Dx(); x++ {
 			for y := 0; y < pic.Bounds().Dy(); y++ {
 				var (
-					c    color.Color
 					rect = pack.rects[id]
 				)
-				if flags&InsertFlipped != 0 {
-					c = pic.At(x, (pic.Bounds().Dy()-1)-y)
-				} else {
-					c = pic.At(x, y)
-				}
-				pack.pic.Set(x+rect.Min.X, y+rect.Min.Y, c)
+				pack.pic.Set(x+rect.Min.X, y+rect.Min.Y, pic.At(x, y))
 			}
 		}
 	}
 	pack.queued = nil
 	pack.emptySpaces = nil
 	pack.images = nil
+	pack.packed = true
 
 	return
 }
 
 // Saves the internal texture as a file on disk, the output type is defined by the filename extension
 func (pack *Packer) Save(filename string) (err error) {
+	if !pack.packed {
+		return ErrNotPacked
+	}
+
 	var (
 		file *os.File
 	)
@@ -214,18 +203,47 @@ func (pack *Packer) Save(filename string) (err error) {
 	return
 }
 
-func (pack *Packer) SetNotFoundId(id int) {
+// Sets the default Id for the packer
+//		If an id doesn't exist in the packer when 'Get' is called, the packer will return this sprite instead.
+func (pack *Packer) SetDefaultId(id int) {
 	pack.nfId = id
 }
 
+// Returns the subimage bounds from the given id
 func (pack *Packer) Get(id int) (rect image.Rectangle) {
+	if !pack.packed {
+		panic(ErrNotPacked)
+	}
+
 	var has bool
 	if rect, has = pack.rects[id]; !has {
+		if pack.nfId == -1 {
+			panic(ErrNotFoundNoDefault)
+		}
 		rect = pack.rects[pack.nfId]
 	}
 	return
 }
 
-func (pack *Packer) Image() image.Image {
+// Returns the subimage, as a copy, from the given id
+func (pack *Packer) SubImage(id int) (img *image.RGBA) {
+	if !pack.packed {
+		panic(ErrNotPacked)
+	}
+
+	r := pack.Get(id)
+	i := pack.pic.PixOffset(r.Min.X, r.Min.Y)
+	return &image.RGBA{
+		Pix:    pack.pic.Pix[i:],
+		Stride: pack.pic.Stride,
+		Rect:   image.Rect(0, 0, r.Dx(), r.Dy()),
+	}
+}
+
+// Returns the entire packed image
+func (pack *Packer) Image() *image.RGBA {
+	if !pack.packed {
+		panic(ErrNotPacked)
+	}
 	return pack.pic
 }
